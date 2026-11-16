@@ -20,8 +20,6 @@ private:
 	static inline bool useMonitorRefreshRate = false;
 	static inline float monitorRefreshRate = 0.0f;
 
-	static inline bool shouldChangeFPSCap = false;
-
 	static inline bool showPerformanceStats = false;
 	static inline bool performanceStatsShown = false;
 

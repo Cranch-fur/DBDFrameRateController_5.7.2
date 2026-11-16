@@ -7,25 +7,29 @@
 
 void FrameRateController::ApplyFrameRateCap()
 {
-	if (shouldChangeFPSCap)
+	/* Dead by Daylight 5.7.2 */
+	static const size_t SCAN_POS = 0x0B6F6CE0;
+
+	HMODULE hMainModule = GetModuleHandle(nullptr);
+	uintptr_t tMaxFPSAddress = Utilities::Memory::Internal::AddressDereference(reinterpret_cast<uintptr_t>(hMainModule), SCAN_POS);
+
+	if (tMaxFPSAddress == 0x0)
+		return;
+
+	float frameRateCap = 0.0f;
+	if (customFrameRateCap > 0.0f)
+		frameRateCap = customFrameRateCap;
+	else
 	{
-		/* Dead by Daylight 5.7.2 */
-		static const size_t SCAN_POS = 0x0B6F6CE0;
-
-		HMODULE hMainModule = GetModuleHandle(nullptr);
-		uintptr_t tMaxFPSAddress = Utilities::Memory::Internal::AddressDereference(reinterpret_cast<uintptr_t>(hMainModule), SCAN_POS);
-
-		if (tMaxFPSAddress == 0x0)
-			return;
-
-		float frameRateCap = 0.0f;
-		if (customFrameRateCap > 0.0f)
-			frameRateCap = customFrameRateCap;
-		else
-			frameRateCap = monitorRefreshRate;
-
-		Utilities::Memory::Internal::SetFloat(tMaxFPSAddress, frameRateCap);
+		/*
+			if (Utilities::Game::IsInOnlineMatch())
+				frameRateCap = onlineFrameRateCap;
+			else
+		*/
+		frameRateCap = useMonitorRefreshRate ? monitorRefreshRate : offlineFrameRateCap;
 	}
+
+	Utilities::Memory::Internal::SetFloat(tMaxFPSAddress, frameRateCap);
 
 	if (showPerformanceStats && (performanceStatsShown == false))
 	{
@@ -49,12 +53,6 @@ void FrameRateController::ApplyFrameRateCap()
 
 DWORD __stdcall FrameRateController::ThreadSafeWorker()
 {
-	if (shouldChangeFPSCap == false && showPerformanceStats == false)
-	{
-		printf("[DBDFrameRateController] ThreadSafeWorker() has no tasks scheduled, exiting...\n");
-		return 0;
-	}
-
 	printf("[DBDFrameRateController] ThreadSafeWorker() is now entering the loop\n");
 
 	while (true)
@@ -64,13 +62,6 @@ DWORD __stdcall FrameRateController::ThreadSafeWorker()
 		__try
 		{
 			ApplyFrameRateCap();
-
-			if (shouldChangeFPSCap == false && (showPerformanceStats && performanceStatsShown))
-			{
-				printf("[DBDFrameRateController] ThreadSafeWorker() completed scheduled tasks, exiting...\n");
-				return 0;
-			}
-
 			Sleep(100);
 		}
 		__except (exceptionInfo = GetExceptionInformation(), EXCEPTION_EXECUTE_HANDLER)
@@ -196,9 +187,6 @@ void FrameRateController::Init()
 			printf("[DBDFrameRateController] EnumDisplaySettings failed, falling back to 60.0f Hz\n");
 		}
 	}
-
-	shouldChangeFPSCap = (customFrameRateCap > 0.0f || useMonitorRefreshRate);
-	printf("[DBDFrameRateController] shouldChangeFPSCap = %s\n", shouldChangeFPSCap ? "true" : "false");
 
 	printf("[DBDFrameRateController] Starting ThreadSafeWorker()...\n");
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ThreadSafeWorker, 0, 0, 0);
